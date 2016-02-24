@@ -1,0 +1,160 @@
+diff --git a/Marlin/Configuration.h b/Marlin/Configuration.h
+index 770c86e..52e3f02 100644
+--- a/Marlin/Configuration.h
++++ b/Marlin/Configuration.h
+@@ -52,12 +52,17 @@ Here are some standard links for getting your machine calibrated:
+ 
+ // This determines the communication speed of the printer
+ #define BAUDRATE 250000
++#define BAUDRATE 115200
+ 
+ // This enables the serial port associated to the Bluetooth interface
+ //#define BTENABLED              // Enable BT interface on AT90USB devices
+ 
+ // The following define selects which electronics board you have.
+ // Please choose the name from boards.h that matches your setup
++// ADDED BY RUNBORG
++#define MOTHERBOARD 80
++// END ADDED BY RuNBORG
++
+ #ifndef MOTHERBOARD
+   #define MOTHERBOARD BOARD_ULTIMAKER
+ #endif
+@@ -593,8 +598,9 @@ const bool Z_MAX_ENDSTOP_INVERTING = true; // set to true to invert the logic of
+ // http://reprap.org/wiki/RepRapDiscount_Full_Graphic_Smart_Controller
+ //
+ // ==> REMEMBER TO INSTALL U8glib to your ARDUINO library folder: http://code.google.com/p/u8glib/wiki/u8glib
+-//#define REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER
+-
++// CHANGED BY RUNBORG
++#define REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER
++// END CHANGED BY RUNBORG
+ // The RepRapWorld REPRAPWORLD_KEYPAD v1.1
+ // http://reprapworld.com/?products_details&products_id=202&cPath=1591_1626
+ //#define REPRAPWORLD_KEYPAD
+diff --git a/Marlin/Configuration_adv.h b/Marlin/Configuration_adv.h
+index a503e64..1c8f8d2 100644
+--- a/Marlin/Configuration_adv.h
++++ b/Marlin/Configuration_adv.h
+@@ -61,22 +61,23 @@
+ //This is for controlling a fan to cool down the stepper drivers
+ //it will turn on when any driver is enabled
+ //and turn off after the set amount of seconds from last driver being disabled again
+-#define CONTROLLERFAN_PIN -1 //Pin used for the fan to cool controller (-1 to disable)
++#define CONTROLLERFAN_PIN 6 //Pin used for the fan to cool controller (-1 to disable)
+ #define CONTROLLERFAN_SECS 60 //How many seconds, after all motors were disabled, the fan should run
+ #define CONTROLLERFAN_SPEED 255  // == full speed
+ 
+ // When first starting the main fan, run it at full speed for the
+ // given number of milliseconds.  This gets the fan spinning reliably
+ // before setting a PWM value. (Does not work with software PWM for fan on Sanguinololu)
+-//#define FAN_KICKSTART_TIME 100
++// RUNARB: Enable Autotemperature
++#define FAN_KICKSTART_TIME 2000
+ 
+ // Extruder cooling fans
+ // Configure fan pin outputs to automatically turn on/off when the associated
+ // extruder temperature is above/below EXTRUDER_AUTO_FAN_TEMPERATURE.
+ // Multiple extruders can be assigned to the same pin in which case
+ // the fan will turn on when any selected extruder is above the threshold.
+-#define EXTRUDER_0_AUTO_FAN_PIN -1
+-#define EXTRUDER_1_AUTO_FAN_PIN -1
++#define EXTRUDER_0_AUTO_FAN_PIN 7
++#define EXTRUDER_1_AUTO_FAN_PIN 8
+ #define EXTRUDER_2_AUTO_FAN_PIN -1
+ #define EXTRUDER_3_AUTO_FAN_PIN -1
+ #define EXTRUDER_AUTO_FAN_TEMPERATURE 50
+diff --git a/Marlin/Marlin.pde b/Marlin/Marlin.pde
+deleted file mode 100644
+index 79c934b..0000000
+--- a/Marlin/Marlin.pde
++++ /dev/null
+@@ -1,56 +0,0 @@
+-/* -*- c++ -*- */
+-
+-/*
+-    Reprap firmware based on Sprinter and grbl.
+- Copyright (C) 2011 Camiel Gubbels / Erik van der Zalm
+-
+- This program is free software: you can redistribute it and/or modify
+- it under the terms of the GNU General Public License as published by
+- the Free Software Foundation, either version 3 of the License, or
+- (at your option) any later version.
+-
+- This program is distributed in the hope that it will be useful,
+- but WITHOUT ANY WARRANTY; without even the implied warranty of
+- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- GNU General Public License for more details.
+-
+- You should have received a copy of the GNU General Public License
+- along with this program.  If not, see <http://www.gnu.org/licenses/>.
+- */
+-
+-/*
+- This firmware is a mashup between Sprinter and grbl.
+-  (https://github.com/kliment/Sprinter)
+-  (https://github.com/simen/grbl/tree)
+-
+- It has preliminary support for Matthew Roberts advance algorithm
+-    http://reprap.org/pipermail/reprap-dev/2011-May/003323.html
+- */
+-
+-/* All the implementation is done in *.cpp files to get better compatibility with avr-gcc without the Arduino IDE */
+-/* Use this file to help the Arduino IDE find which Arduino libraries are needed and to keep documentation on GCode */
+-
+-#include "Configuration.h"
+-#include "pins.h"
+-
+-#ifdef ULTRA_LCD
+-  #if defined(LCD_I2C_TYPE_PCF8575)
+-    #include <Wire.h>
+-    #include <LiquidCrystal_I2C.h>
+-  #elif defined(LCD_I2C_TYPE_MCP23017) || defined(LCD_I2C_TYPE_MCP23008)
+-    #include <Wire.h>
+-    #include <LiquidTWI2.h>
+-  #elif defined(DOGLCD)
+-    #include <U8glib.h> // library for graphics LCD by Oli Kraus (https://code.google.com/p/u8glib/)
+-  #else
+-    #include <LiquidCrystal.h> // library for character LCD
+-  #endif
+-#endif
+-
+-#if defined(DIGIPOTSS_PIN) && DIGIPOTSS_PIN > -1
+-#include <SPI.h>
+-#endif
+-
+-#if defined(DIGIPOT_I2C)
+-  #include <Wire.h>
+-#endif
+diff --git a/Marlin/dogm_lcd_implementation.h b/Marlin/dogm_lcd_implementation.h
+index 220621d..02be03e 100644
+--- a/Marlin/dogm_lcd_implementation.h
++++ b/Marlin/dogm_lcd_implementation.h
+@@ -228,7 +228,11 @@ static void lcd_implementation_status_screen() {
+     u8g.print(itostr3(int((fanSpeed*100)/256 + 1)));
+     u8g.print("%");
+   #else
++    #if defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1
++    u8g.print(itostr3(int((fanSpeed*100)/256 + 1)));
++    #else
+     u8g.print("---");
++    #endif
+   #endif
+ 
+   // X, Y, Z-Coordinates
+diff --git a/Marlin/pins_RUMBA.h b/Marlin/pins_RUMBA.h
+index 8828ef3..e81f18a 100644
+--- a/Marlin/pins_RUMBA.h
++++ b/Marlin/pins_RUMBA.h
+@@ -38,8 +38,9 @@
+ 
+ #define LED_PIN            13
+ 
+-#define FAN_PIN            7
+-#define FAN1_PIN           8
++// Runar - Disabled fan setting and activated auto-fan controll in adv. settings
++#define FAN_PIN            -1 //7   
++#define FAN1_PIN           -1 //8
+ 
+ #define PS_ON_PIN          45
+ #define KILL_PIN           46
